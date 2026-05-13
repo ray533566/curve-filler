@@ -2,7 +2,7 @@ import io
 import os
 import re
 import zipfile
-import tempfile
+import urllib.request
 
 import pandas as pd
 import streamlit as st
@@ -16,133 +16,36 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── GitHub template URL ─────────────────────────────────────────────────────
+# Replace with the raw URL from your GitHub repository, e.g.:
+# https://raw.githubusercontent.com/johndoe/curve-filler/main/TEC_2xFR4_Curve_PY.xlsx
+TEMPLATE_URL = (
+    "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
+    "/main/TEC_2xFR4_Curve_PY.xlsx"
+)
+
 # ─── Custom CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
-
-/* Dark industrial theme */
-.stApp {
-    background: #0e1117;
-    color: #e2e8f0;
-}
-
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background: #161b27 !important;
-    border-right: 1px solid #2d3748;
-}
-
-/* Title */
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+.stApp { background: #0e1117; color: #e2e8f0; }
+section[data-testid="stSidebar"] { background: #161b27 !important; border-right: 1px solid #2d3748; }
 h1 { font-family: 'Space Mono', monospace !important; color: #63b3ed !important; letter-spacing: -0.02em; }
 h2, h3 { font-family: 'Space Mono', monospace !important; color: #90cdf4 !important; }
-
-/* Cards */
-.card {
-    background: #161b27;
-    border: 1px solid #2d3748;
-    border-radius: 10px;
-    padding: 1.2rem 1.5rem;
-    margin-bottom: 1rem;
-}
-.card-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #63b3ed;
-    margin-bottom: 0.5rem;
-}
-
-/* File uploader */
-[data-testid="stFileUploader"] {
-    background: #1a2035 !important;
-    border: 1.5px dashed #4a5568 !important;
-    border-radius: 8px !important;
-}
-
-/* Buttons */
-.stButton > button {
-    background: linear-gradient(135deg, #2b6cb0, #3182ce) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.85rem !important;
-    padding: 0.6rem 1.4rem !important;
-    transition: all 0.2s ease !important;
-}
-.stButton > button:hover {
-    background: linear-gradient(135deg, #3182ce, #4299e1) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(66, 153, 225, 0.35) !important;
-}
-
-/* Download buttons */
-[data-testid="stDownloadButton"] > button {
-    background: #1a3a2a !important;
-    border: 1px solid #276749 !important;
-    color: #68d391 !important;
-    border-radius: 6px !important;
-    font-size: 0.78rem !important;
-    padding: 0.35rem 0.9rem !important;
-    width: 100%;
-    font-family: 'Space Mono', monospace !important;
-}
-[data-testid="stDownloadButton"] > button:hover {
-    background: #22543d !important;
-    border-color: #48bb78 !important;
-}
-
-/* Status pills */
-.pill {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-family: 'Space Mono', monospace;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-}
+.card { background: #161b27; border: 1px solid #2d3748; border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1rem; }
+.card-title { font-family: 'Space Mono', monospace; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: #63b3ed; margin-bottom: 0.5rem; }
+[data-testid="stFileUploader"] { background: #1a2035 !important; border: 1.5px dashed #4a5568 !important; border-radius: 8px !important; }
+.stButton > button { background: linear-gradient(135deg, #2b6cb0, #3182ce) !important; color: white !important; border: none !important; border-radius: 8px !important; font-family: 'Space Mono', monospace !important; font-size: 0.85rem !important; padding: 0.6rem 1.4rem !important; transition: all 0.2s ease !important; }
+.stButton > button:hover { background: linear-gradient(135deg, #3182ce, #4299e1) !important; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(66, 153, 225, 0.35) !important; }
+[data-testid="stDownloadButton"] > button { background: #1a3a2a !important; border: 1px solid #276749 !important; color: #68d391 !important; border-radius: 6px !important; font-size: 0.78rem !important; padding: 0.35rem 0.9rem !important; width: 100%; font-family: 'Space Mono', monospace !important; }
+[data-testid="stDownloadButton"] > button:hover { background: #22543d !important; border-color: #48bb78 !important; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.72rem; font-family: 'Space Mono', monospace; font-weight: 700; letter-spacing: 0.06em; }
 .pill-pc   { background: #1a365d; color: #63b3ed; border: 1px solid #2b6cb0; }
 .pill-wrp  { background: #322659; color: #b794f4; border: 1px solid #553c9a; }
-.pill-ok   { background: #1c4532; color: #68d391; border: 1px solid #276749; }
-.pill-warn { background: #744210; color: #f6ad55; border: 1px solid #c05621; }
-
-/* Progress / info boxes */
-.info-box {
-    background: #1a2744;
-    border-left: 3px solid #63b3ed;
-    border-radius: 0 6px 6px 0;
-    padding: 0.6rem 1rem;
-    margin: 0.4rem 0;
-    font-size: 0.85rem;
-    color: #bee3f8;
-}
-.warn-box {
-    background: #2d1b00;
-    border-left: 3px solid #f6ad55;
-    border-radius: 0 6px 6px 0;
-    padding: 0.6rem 1rem;
-    margin: 0.4rem 0;
-    font-size: 0.85rem;
-    color: #fbd38d;
-}
-.success-box {
-    background: #1c3a2a;
-    border-left: 3px solid #68d391;
-    border-radius: 0 6px 6px 0;
-    padding: 0.6rem 1rem;
-    margin: 0.4rem 0;
-    font-size: 0.85rem;
-    color: #9ae6b4;
-}
-
-/* Divider */
+.info-box { background: #1a2744; border-left: 3px solid #63b3ed; border-radius: 0 6px 6px 0; padding: 0.6rem 1rem; margin: 0.4rem 0; font-size: 0.85rem; color: #bee3f8; }
+.warn-box { background: #2d1b00; border-left: 3px solid #f6ad55; border-radius: 0 6px 6px 0; padding: 0.6rem 1rem; margin: 0.4rem 0; font-size: 0.85rem; color: #fbd38d; }
+.success-box { background: #1c3a2a; border-left: 3px solid #68d391; border-radius: 0 6px 6px 0; padding: 0.6rem 1rem; margin: 0.4rem 0; font-size: 0.85rem; color: #9ae6b4; }
 hr { border-color: #2d3748 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -177,6 +80,15 @@ WRP_COL_MAP = {
     "CH5_DDMI_Bias": 28, "CH6_DDMI_Bias": 29,
     "CH7_DDMI_Bias": 30, "CH8_DDMI_Bias": 31,
 }
+
+# ─── Template loader (cached) ─────────────────────────────────────────────────
+
+@st.cache_data(show_spinner=False)
+def load_template_from_github(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.read()
+
 
 # ─── Core processing functions ───────────────────────────────────────────────
 
@@ -222,7 +134,7 @@ def write_df_to_sheet(ws, df: pd.DataFrame, col_map: dict):
                 ws.cell(ri, idx).value = val
 
 
-def build_workbook(template_bytes: bytes, ch_data: dict, col_map: dict) -> bytes:
+def build_workbook(template_bytes: bytes, ch_data: dict, col_map: dict):
     wb = load_workbook(io.BytesIO(template_bytes))
     clear_ch_data(wb)
 
@@ -246,11 +158,6 @@ def build_workbook(template_bytes: bytes, ch_data: dict, col_map: dict) -> bytes
     return buf.getvalue(), op_rows, max_rows
 
 
-def detect_source(df: pd.DataFrame) -> str:
-    """Return 'PC' or 'WRP' based on column names."""
-    return "WRP" if "TESTNUMBER" in df.columns else "PC"
-
-
 def read_csv_safe(file_obj) -> pd.DataFrame:
     raw = file_obj.read()
     for enc in ("utf-8-sig", "utf-8", "cp950", "latin-1"):
@@ -262,7 +169,6 @@ def read_csv_safe(file_obj) -> pd.DataFrame:
 
 
 def extract_sn_from_filename(fname: str) -> str:
-    """Extract SN like P204261000290 from filename."""
     m = re.search(r"(P\d{12})", fname)
     return m.group(1) if m else os.path.splitext(os.path.basename(fname))[0]
 
@@ -277,7 +183,6 @@ def process_pc_csv_pair(op_df: pd.DataFrame, max_df: pd.DataFrame) -> dict:
 
 
 def process_wrp_csv(df: pd.DataFrame) -> list:
-    """Split WRP dataframe by TESTNUMBER. Returns list of (group_idx, df) tuples."""
     groups = df["TESTNUMBER"].unique().tolist()
     return [(i, df[df["TESTNUMBER"] == g].reset_index(drop=True)) for i, g in enumerate(groups)]
 
@@ -296,10 +201,10 @@ def sidebar():
 <div class='card'>
 <div class='card-title'>How to use</div>
 
-**Step 1** — Upload your Excel template<br>
-**Step 2** — Upload PC Raw CSVs (zip or multiple files)<br>
-**Step 3** — Upload WRP Raw CSVs (zip or multiple files)<br>
-**Step 4** — Click <b>Process</b> and download results
+**Step 1** — Upload PC Raw CSVs (zip or multiple files)<br>
+**Step 2** — Upload WRP Raw CSVs (zip or multiple files)<br>
+**Step 3** — Click <b>Process</b> and download results<br><br>
+<span style='color:#63b3ed;font-size:0.8rem'>📄 Template is auto-loaded from GitHub.</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -316,7 +221,6 @@ Each unique <code>TESTNUMBER</code> → separate Excel file<br><br>
         st.markdown("""
 <div class='card'>
 <div class='card-title'>Supported Formats</div>
-Template: <code>.xlsx</code><br>
 Raw data: <code>.csv</code> or <code>.zip</code>
 </div>
 """, unsafe_allow_html=True)
@@ -329,23 +233,26 @@ def main():
     st.markdown("Automatically fill raw test data into Excel curve templates — PC & WRP, multi-group aware.")
     st.markdown("---")
 
-    col1, col2, col3 = st.columns([1.2, 1, 1])
+    # ── Template status ────────────────────────────────────────────────────
+    template_bytes = None
+    try:
+        template_bytes = load_template_from_github(TEMPLATE_URL)
+        st.markdown(
+            "<div class='success-box'>✓ Template <code>TEC_2xFR4_Curve_PY.xlsx</code> loaded from GitHub</div>",
+            unsafe_allow_html=True,
+        )
+    except Exception as e:
+        st.markdown(
+            f"<div class='warn-box'>⚠️ Could not load template from GitHub: {e}<br>"
+            "Please update <code>TEMPLATE_URL</code> in <code>app.py</code> with your raw GitHub URL.</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("")
+
+    col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### 📄 Template")
-        template_file = st.file_uploader(
-            "Upload Excel template (.xlsx)",
-            type=["xlsx"],
-            key="template",
-            label_visibility="collapsed",
-        )
-        if template_file:
-            st.markdown(
-                f"<div class='success-box'>✓ {template_file.name}</div>",
-                unsafe_allow_html=True,
-            )
-
-    with col2:
         st.markdown("### 🖥️ PC Raw Data")
         pc_files = st.file_uploader(
             "Upload PC CSVs or ZIP",
@@ -356,11 +263,11 @@ def main():
         )
         if pc_files:
             st.markdown(
-                f"<div class='info-box'><span class='pill pill-pc'>PC</span> {len(pc_files)} file(s) uploaded</div>",
+                f"<div class='info-box'><span class='pill pill-pc'>PC</span>&nbsp; {len(pc_files)} file(s) uploaded</div>",
                 unsafe_allow_html=True,
             )
 
-    with col3:
+    with col2:
         st.markdown("### 📡 WRP Raw Data")
         wrp_files = st.file_uploader(
             "Upload WRP CSVs or ZIP",
@@ -371,7 +278,7 @@ def main():
         )
         if wrp_files:
             st.markdown(
-                f"<div class='info-box'><span class='pill pill-wrp'>WRP</span> {len(wrp_files)} file(s) uploaded</div>",
+                f"<div class='info-box'><span class='pill pill-wrp'>WRP</span>&nbsp; {len(wrp_files)} file(s) uploaded</div>",
                 unsafe_allow_html=True,
             )
 
@@ -379,19 +286,26 @@ def main():
     process_btn = st.button("⚡  Process & Generate Excel Files", use_container_width=True)
 
     if process_btn:
-        if not template_file:
-            st.error("Please upload the Excel template first.")
+        if template_bytes is None:
+            try:
+                with st.spinner("Downloading template from GitHub…"):
+                    template_bytes = load_template_from_github(TEMPLATE_URL)
+            except Exception as e:
+                st.error(
+                    f"❌ Failed to download template from GitHub: {e}\n\n"
+                    "Please update `TEMPLATE_URL` in `app.py` to point to your raw GitHub file."
+                )
+                return
+
+        if not pc_files and not wrp_files:
+            st.warning("Please upload at least one PC or WRP raw data file.")
             return
 
-        template_bytes = template_file.read()
-        results = []        # list of (filename, bytes)
+        results = []
         log_lines = []
-
         progress = st.progress(0, text="Starting…")
 
-        # ── Load all CSVs ──────────────────────────────────────────────────
         def load_csvs_from_uploads(uploads):
-            """Returns list of (filename, DataFrame)."""
             out = []
             for uf in uploads:
                 if uf.name.lower().endswith(".zip"):
@@ -418,8 +332,7 @@ def main():
             progress.progress(10, text="Loading PC raw data…")
             pc_csvs = load_csvs_from_uploads(pc_files)
 
-            # Group by SN
-            pc_by_sn: dict[str, dict] = {}
+            pc_by_sn: dict = {}
             for fname, df in pc_csvs:
                 if df.empty:
                     continue
@@ -432,8 +345,7 @@ def main():
 
             total_pc = len(pc_by_sn)
             for idx, (sn, pair) in enumerate(pc_by_sn.items()):
-                progress.progress(10 + int(30 * idx / max(total_pc, 1)),
-                                  text=f"PC: {sn}…")
+                progress.progress(10 + int(30 * idx / max(total_pc, 1)), text=f"PC: {sn}…")
                 if "op" not in pair or "max" not in pair:
                     log_lines.append(f"⚠️ PC {sn}: missing Operational or Maximum CSV — skipped")
                     continue
@@ -448,8 +360,7 @@ def main():
             progress.progress(45, text="Loading WRP raw data…")
             wrp_csvs = load_csvs_from_uploads(wrp_files)
 
-            # Group by SN (one CSV per SN for WRP)
-            wrp_by_sn: dict[str, pd.DataFrame] = {}
+            wrp_by_sn: dict = {}
             for fname, df in wrp_csvs:
                 if df.empty:
                     continue
@@ -459,8 +370,11 @@ def main():
                 else:
                     wrp_by_sn[sn] = df
 
-            total_wrp = sum(len(df["TESTNUMBER"].unique()) for df in wrp_by_sn.values()
-                            if "TESTNUMBER" in df.columns)
+            total_wrp = sum(
+                len(df["TESTNUMBER"].unique())
+                for df in wrp_by_sn.values()
+                if "TESTNUMBER" in df.columns
+            )
             done = 0
             for sn, df in wrp_by_sn.items():
                 if "TESTNUMBER" not in df.columns:
@@ -468,8 +382,10 @@ def main():
                     continue
                 groups = process_wrp_csv(df)
                 for group_idx, group_df in groups:
-                    progress.progress(45 + int(50 * done / max(total_wrp, 1)),
-                                      text=f"WRP: {sn} group {group_idx + 1}/{len(groups)}…")
+                    progress.progress(
+                        45 + int(50 * done / max(total_wrp, 1)),
+                        text=f"WRP: {sn} group {group_idx + 1}/{len(groups)}…",
+                    )
                     ch_data = wrp_group_to_ch_data(group_df)
                     wb_bytes, op_r, max_r = build_workbook(template_bytes, ch_data, WRP_COL_MAP)
                     suffix = "WRP" if group_idx == 0 else f"WRP_{group_idx}"
@@ -485,7 +401,6 @@ def main():
         st.markdown("---")
         st.markdown(f"### ✅ Generated {len(results)} file(s)")
 
-        # Log
         with st.expander("📋 Processing log", expanded=False):
             for line in log_lines:
                 color = "success-box" if line.startswith("✓") else "warn-box"
@@ -495,7 +410,6 @@ def main():
             st.warning("No output files were generated. Check your uploads.")
             return
 
-        # Tabs for PC / WRP
         pc_results  = [(n, b) for n, b, t in results if t == "PC"]
         wrp_results = [(n, b) for n, b, t in results if t == "WRP"]
 
