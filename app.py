@@ -19,9 +19,9 @@ st.set_page_config(
 # ─── GitHub template URL ─────────────────────────────────────────────────────
 # Replace with the raw URL from your GitHub repository, e.g.:
 # https://raw.githubusercontent.com/johndoe/curve-filler/main/TEC_2xFR4_Curve_PY.xlsx
-TEMPLATE_URL = (
+
     TEMPLATE_URL = "https://raw.githubusercontent.com/ray533566/curve-filler/main/TEC_2xFR4_Curve_PY.xlsx"
-)
+
 
 # ─── Custom CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
