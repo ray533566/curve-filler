@@ -20,8 +20,7 @@ st.set_page_config(
 # Replace with the raw URL from your GitHub repository, e.g.:
 # https://raw.githubusercontent.com/johndoe/curve-filler/main/TEC_2xFR4_Curve_PY.xlsx
 TEMPLATE_URL = (
-    "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
-    "/main/TEC_2xFR4_Curve_PY.xlsx"
+    TEMPLATE_URL = "https://raw.githubusercontent.com/ray533566/curve-filler/main/TEC_2xFR4_Curve_PY.xlsx"
 )
 
 # ─── Custom CSS ─────────────────────────────────────────────────────────────
